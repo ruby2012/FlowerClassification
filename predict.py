@@ -1,6 +1,11 @@
 #Imports
-import torch
+
+# Imports here
 import os, random
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import torch
 from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -9,33 +14,39 @@ import torchvision
 from torchvision import transforms, models, datasets
 from torchvision.datasets import ImageFolder 
 from collections import OrderedDict
-import copy
 import time
+import copy
 from PIL import Image
+import argparse
 
+parser = argparse.ArgumentParser(description = "Predict Image")
+
+parser.add_argument('-g', '--gpu', default=True, action = 'store_true', help="Default GPU, switch to CPU")
+parser.add_argument('-f', '--save_location', default='./checkpoint.pth', help="location of saved checkpoint")
+parser.add_argument('-i', '--image', default='flowers/test/13/image_05761.jpg', help="image to predict")
+parser.add_argument('-t', '--top_pred', type = str, default = 5, help= "top flower predictions")
+parser.add_argument('-m', '--mapping_file', default = 'cat_to_name.json', help="json mapping file")
+
+args = parser.parse_args()
+
+image = args.image
 # ## Loading the checkpoint
-def checkpoint_load(checkpoint_file): 
-    torch.load(checkpoint.pth)
-    
-    arch = checkpoint['arch']
-                      
-    model = getattr(models, checkpoint['arch'])(pretrained=True)
-    
+
+def checkpoint_load(checkpoint_file):
     checkpoint = torch.load(checkpoint_file)
-    classifier = nn.Sequential(nn.Linear(512, 1024), 
-                           nn.ReLU(),
-                           nn.Dropout (p=.25),
-                           nn.Linear(1024, 102),
-                           nn.LogSoftmax(dim=1))
+    classifier = checkpoint['classifier']
     
-    for param in model.parameters(): param.requires_grad = False
-        
+    model = getattr(models, checkpoint['model'])(pretrained=True)
+    
     model.class_to_idx = checkpoint['class_to_idx']
     model.classifier = checkpoint['classifier']
     model.load_state_dict(checkpoint['state_dict'], strict = False)
         
-    return model
+    return model, checkpoint['class_to_idx']
 
+model,class_to_idx = checkpoint_load('checkpoint.pth')
+
+image = args.image
 
 # TODO: Process a PIL image for use in a PyTorch model
 
@@ -55,17 +66,19 @@ def process_image(image):
     return image
     
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model.class_to_idx = checkpoint['class_to_idx']
+device =args.gpu
+
+model.class_to_idx = args.mapping_file
 
 
 #Prediction
+#topk = args.top_pred
 
-def predict(image_path, model, topk=5):
+def predict(image, model, topk = args.top_pred):
     ''' Predict the class (or classes) of an image using a trained deep learning model.
     '''
     
-    predimg = Image.open(image_path)
+    predimg = Image.open(args.image)
     predimg = process_image(predimg)
     
     predimg = np.expand_dims(predimg, 0)
@@ -84,8 +97,8 @@ def predict(image_path, model, topk=5):
 #Run predict to get probabilities and indices
 
 
-img = random.choice(os.listdir('flowers/train/13/'))
-image_path = 'flowers/train/13/' + img
+
+image_path = args.image
   
 prob,classes = predict(image_path, model)
 idx_to_class = {v: k for k, v in test_dataset.class_to_idx.items()}
@@ -96,7 +109,8 @@ print(classes)
 print(names)
 
 
-
+if __name__ == '__main__':
+    main()
 
 
 
